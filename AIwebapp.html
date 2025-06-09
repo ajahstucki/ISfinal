@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Emoji Fruit Ninja</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Comic Sans MS', cursive;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(#d4f1f9, #fff);
+      overflow: hidden;
+    }
+
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 28px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 14px 20px;
+      border-radius: 12px;
+      z-index: 10;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
+    }
+
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #sword {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      pointer-events: none;
+      transform: rotate(45deg);
+      z-index: 9;
+    }
+
+    #game-over-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 36px;
+      display: none;
+      z-index: 20;
+    }
+
+    #replay-btn {
+      margin-top: 20px;
+      padding: 12px 28px;
+      font-size: 22px;
+      background: white;
+      color: black;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    #replay-btn:hover {
+      background: #ddd;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="score">Score: 0</div>
+    <canvas id="gameCanvas"></canvas>
+    <img id="sword" src="https://emojicdn.elk.sh/🗡️" alt="sword" />
+
+    <div id="game-over-screen">
+      <div>🍌 Game Over 🍓</div>
+      <button id="replay-btn">Replay</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreDisplay = document.getElementById("score");
+    const sword = document.getElementById("sword");
+    const gameOverScreen = document.getElementById("game-over-screen");
+    const replayBtn = document.getElementById("replay-btn");
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const fruits = ["🍉", "🍌", "🍍", "🍓", "🍇", "🥭", "🍊"];
+    let fallingFruits = [];
+    let brokenFruits = [];
+    let score = 0;
+    let gameOver = false;
+    let fruitInterval;
+
+    let prevMouse = { x: 0, y: 0 };
+
+    class Fruit {
+      constructor(x, y, emoji) {
+        this.x = x;
+        this.y = y;
+        this.emoji = emoji;
+        this.size = 40;
+        this.speed = Math.random() * 2 + 2;
+        this.hit = false;
+      }
+
+      draw() {
+        ctx.font = `${this.size}px Arial`;
+        ctx.fillText(this.emoji, this.x, this.y);
+      }
+
+      update() {
+        this.y += this.speed;
+        this.draw();
+      }
+    }
+
+    class FruitHalf {
+      constructor(x, y, emoji, direction) {
+        this.x = x;
+        this.y = y;
+        this.emoji = emoji;
+        this.size = 20;
+        this.speedY = Math.random() * 2 + 1;
+        this.speedX = direction * (Math.random() * 2 + 1);
+        this.rotation = Math.random() * Math.PI;
+        this.rotationSpeed = direction * 0.05;
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+        ctx.font = `${this.size}px Arial`;
+        ctx.fillText(this.emoji, -10, 10);
+        ctx.restore();
+      }
+
+      update() {
+        this.y += this.speedY;
+        this.x += this.speedX;
+        this.rotation += this.rotationSpeed;
+        this.draw();
+      }
+    }
+
+    function spawnFruit() {
+      const x = Math.random() * (canvas.width - 50);
+      const emoji = fruits[Math.floor(Math.random() * fruits.length)];
+      fallingFruits.push(new Fruit(x, -40, emoji));
+    }
+
+    function startGame() {
+      fallingFruits = [];
+      brokenFruits = [];
+      score = 0;
+      gameOver = false;
+      scoreDisplay.textContent = "Score: 0";
+      gameOverScreen.style.display = "none";
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      fruitInterval = setInterval(spawnFruit, 800);
+      animate();
+    }
+
+    function endGame() {
+      gameOver = true;
+      clearInterval(fruitInterval);
+      gameOverScreen.style.display = "flex";
+    }
+
+    function animate() {
+      if (gameOver) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Update whole fruits
+      fallingFruits.forEach((fruit, index) => {
+        fruit.update();
+        if (!fruit.hit && fruit.y > canvas.height) {
+          endGame();
+        }
+      });
+
+      // Update broken fruit halves
+      brokenFruits.forEach((half, index) => {
+        half.update();
+        if (half.y > canvas.height + 100) {
+          brokenFruits.splice(index, 1);
+        }
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    document.addEventListener("mousemove", (e) => {
+      sword.style.left = `${e.pageX - 40}px`;
+      sword.style.top = `${e.pageY - 40}px`;
+
+      const dx = e.pageX - prevMouse.x;
+      const dy = e.pageY - prevMouse.y;
+      const speed = Math.sqrt(dx * dx + dy * dy);
+
+      if (speed > 15) {
+        checkSlice();
+      }
+
+      prevMouse = { x: e.pageX, y: e.pageY };
+    });
+
+    function checkSlice() {
+      const swordRect = sword.getBoundingClientRect();
+
+      fallingFruits.forEach((fruit, index) => {
+        if (fruit.hit) return;
+
+        const fruitX = fruit.x;
+        const fruitY = fruit.y;
+
+        if (
+          fruitX >= swordRect.left &&
+          fruitX <= swordRect.right &&
+          fruitY >= swordRect.top &&
+          fruitY <= swordRect.bottom
+        ) {
+          fruit.hit = true;
+          score++;
+          scoreDisplay.textContent = `Score: ${score}`;
+          brokenFruits.push(new FruitHalf(fruit.x, fruit.y, fruit.emoji, -1));
+          brokenFruits.push(new FruitHalf(fruit.x, fruit.y, fruit.emoji, 1));
+          fallingFruits.splice(index, 1);
+        }
+      });
+    }
+
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+
+    replayBtn.addEventListener("click", startGame);
+
+    // Start the game on load
+    startGame();
+  </script>
+</body>
+</html>
